@@ -76,8 +76,13 @@ const Auth = () => {
         throw new Error("Supabase is not configured. Please check your environment variables.");
       }
 
+      // Use production URL for password reset
+      const redirectUrl = import.meta.env.PROD 
+        ? 'https://stress2art.com/reset-password'
+        : `${window.location.origin}/reset-password`;
+      
       const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: redirectUrl,
       });
       
       if (error) {
