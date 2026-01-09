@@ -68,17 +68,34 @@ const Auth = () => {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error("Supabase is not configured. Please check your environment variables.");
+      }
+
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
       
       setResetEmailSent(true);
       toast.success("Password reset email sent! Check your inbox 📧");
     } catch (error: any) {
       console.error("Reset password error:", error);
-      toast.error(error.message || "Failed to send reset email");
+      if (error.message?.includes("fetch") || error.message?.includes("network")) {
+        toast.error("Network error. Please check your Supabase configuration in Vercel.");
+      } else if (error.message?.includes("not configured")) {
+        toast.error("Supabase is not configured. Please add environment variables in Vercel.");
+      } else {
+        toast.error(error.message || "Failed to send reset email");
+      }
     } finally {
       setLoading(false);
     }
