@@ -13,6 +13,8 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,6 +59,31 @@ const Auth = () => {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      toast.error("Please enter your email address");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      
+      if (error) throw error;
+      
+      setResetEmailSent(true);
+      toast.success("Password reset email sent! Check your inbox 📧");
+    } catch (error: any) {
+      console.error("Reset password error:", error);
+      toast.error(error.message || "Failed to send reset email");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen gradient-soft flex items-center justify-center p-4">
       {/* Decorative elements */}
@@ -93,10 +120,16 @@ const Auth = () => {
         {/* Auth Card */}
         <div className="bg-card rounded-3xl shadow-card p-8">
           <h2 className="text-2xl font-bold text-center text-foreground mb-6">
-            {isLogin ? "Welcome Back! 💕" : "Join Us! 🎨"}
+            {showForgotPassword ? "Reset Password 🔑" : isLogin ? "Welcome Back! 💕" : "Join Us! 🎨"}
           </h2>
+          
+          {showForgotPassword && !resetEmailSent && (
+            <p className="text-sm text-muted-foreground text-center mb-4">
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+          )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={showForgotPassword ? handleForgotPassword : handleSubmit} className="space-y-4">
             {!isLogin && (
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -122,43 +155,101 @@ const Auth = () => {
               />
             </div>
 
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                className="pl-10 h-12 rounded-xl border-border/50 focus:border-primary"
-              />
-            </div>
+            {!showForgotPassword && (
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  className="pl-10 h-12 rounded-xl border-border/50 focus:border-primary"
+                />
+              </div>
+            )}
 
-            <Button
-              type="submit"
-              variant="cute"
-              size="lg"
-              className="w-full h-12"
-              disabled={loading}
-            >
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                  {isLogin ? "Signing in..." : "Creating account..."}
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5" />
-                  {isLogin ? "Sign In" : "Create Account"}
-                </span>
-              )}
-            </Button>
+            {showForgotPassword && resetEmailSent ? (
+              <div className="text-center py-4">
+                <div className="mb-4">
+                  <Mail className="w-12 h-12 text-primary mx-auto mb-2" />
+                  <p className="text-foreground font-medium mb-2">Check your email! 📧</p>
+                  <p className="text-sm text-muted-foreground">
+                    We've sent a password reset link to <span className="font-medium text-foreground">{email}</span>
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowForgotPassword(false);
+                    setResetEmailSent(false);
+                    setEmail("");
+                  }}
+                  className="w-full"
+                >
+                  Back to Login
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="submit"
+                variant="cute"
+                size="lg"
+                className="w-full h-12"
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                    {showForgotPassword ? "Sending..." : isLogin ? "Signing in..." : "Creating account..."}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5" />
+                    {showForgotPassword ? "Send Reset Link" : isLogin ? "Sign In" : "Create Account"}
+                  </span>
+                )}
+              </Button>
+            )}
           </form>
+
+          {!showForgotPassword && isLogin && (
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => {
+                  setShowForgotPassword(true);
+                  setPassword("");
+                }}
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                Forgot your password?
+              </button>
+            </div>
+          )}
+
+          {showForgotPassword && !resetEmailSent && (
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setEmail("");
+                }}
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                Back to login
+              </button>
+            </div>
+          )}
 
           <div className="mt-6 text-center">
             <button
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setShowForgotPassword(false);
+                setResetEmailSent(false);
+              }}
               className="text-muted-foreground hover:text-primary transition-colors"
             >
               {isLogin ? (
