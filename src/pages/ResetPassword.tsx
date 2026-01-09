@@ -19,11 +19,18 @@ const ResetPassword = () => {
     // Supabase handles the hash fragments automatically
     // Check if user has a valid session (from the reset link)
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        setIsValidSession(true);
-      } else {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error("Session error:", sessionError);
+        }
+        
+        if (session) {
+          setIsValidSession(true);
+          return;
+        }
+
         // Try to get session from URL hash
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = hashParams.get("access_token");
@@ -39,16 +46,38 @@ const ResetPassword = () => {
             
             if (error) {
               console.error("Error setting session:", error);
-              toast.error("Invalid or expired reset link");
-              navigate("/auth");
+              toast.error(error.message || "Invalid or expired reset link");
+              setTimeout(() => navigate("/auth"), 2000);
             } else {
               setIsValidSession(true);
             }
+          } else {
+            toast.error("Invalid reset link - missing refresh token");
+            setTimeout(() => navigate("/auth"), 2000);
           }
         } else {
-          toast.error("Invalid reset link");
-          setTimeout(() => navigate("/auth"), 2000);
+          // Check if there's a hash at all
+          if (window.location.hash) {
+            // Wait a bit for Supabase to process the hash
+            setTimeout(() => {
+              supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session) {
+                  setIsValidSession(true);
+                } else {
+                  toast.error("Invalid or expired reset link");
+                  setTimeout(() => navigate("/auth"), 2000);
+                }
+              });
+            }, 500);
+          } else {
+            toast.error("Invalid reset link");
+            setTimeout(() => navigate("/auth"), 2000);
+          }
         }
+      } catch (error: any) {
+        console.error("Failed to check session:", error);
+        toast.error("Failed to verify reset link. Please try again.");
+        setTimeout(() => navigate("/auth"), 2000);
       }
     };
 
@@ -70,6 +99,13 @@ const ResetPassword = () => {
 
     setLoading(true);
     try {
+      // Verify we have a valid session before updating password
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        throw new Error("No active session. Please use the reset link from your email.");
+      }
+
       const { error } = await supabase.auth.updateUser({
         password: password,
       });
@@ -85,7 +121,11 @@ const ResetPassword = () => {
       }, 2000);
     } catch (error: any) {
       console.error("Reset password error:", error);
-      toast.error(error.message || "Failed to reset password");
+      if (error.message?.includes("fetch")) {
+        toast.error("Network error. Please check your connection and try again.");
+      } else {
+        toast.error(error.message || "Failed to reset password");
+      }
     } finally {
       setLoading(false);
     }
